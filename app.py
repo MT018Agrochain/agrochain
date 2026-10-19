@@ -9,6 +9,114 @@ from scipy.stats import zscore
 import plotly.express as px
 import plotly.graph_objects as go
 import json
+import os
+
+def tampilkan_blokir_anomali(hasil_sesudah):
+    """Jika ada data anomali yang belum valid (Perlu Cek): tampilkan keterangan + tombol riwayat.
+    Mengembalikan True bila pencatatan ke blockchain harus diblokir."""
+    cek = hasil_sesudah[hasil_sesudah["Status_Validasi"].astype(str).str.contains("Perlu", na=False)]
+    if len(cek) == 0:
+        return False
+
+    st.error(
+        "Data anomali (melebihi track record): " + ", ".join(cek["Provinsi"].astype(str))
+        + ". Pencatatan ke blockchain dinonaktifkan. Hanya data normal atau Anomali Valid "
+        "(Lumbung Pangan Nasional) yang dapat dicatat."
+    )
+
+    if st.button("🔍 Cek data sebelumnya", key="btn_cek_riwayat_blokir"):
+        st.session_state["tampil_cek_riwayat_blokir"] = not st.session_state.get("tampil_cek_riwayat_blokir", False)
+    if st.session_state.get("tampil_cek_riwayat_blokir", False):
+        riwayat = pd.read_csv(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "riwayat_produksi.csv"),
+            index_col="Provinsi",
+        )
+        daftar = [p for p in cek["Provinsi"] if p in riwayat.index]
+        if daftar:
+            hasil = riwayat.loc[daftar].copy()
+            hasil["Rata-rata 2020-2024"] = hasil.mean(axis=1)
+            hasil["2025 (saat ini)"] = cek.set_index("Provinsi").loc[daftar, "Produksi"]
+            st.dataframe(hasil.round(0), use_container_width=True)
+            st.caption("Sumber: BPS, produksi padi (ton GKG).")
+        else:
+            st.info("Riwayat provinsi ini belum tersedia.")
+    return True
+
+def tampilkan_tabel_anomali(anomali_df):
+    """Tabel Data Anomali + validasi kontekstual + tombol riwayat 5 tahun."""
+    if len(anomali_df) == 0:
+        st.success("Tidak ditemukan anomali.")
+        return
+
+    tabel = anomali_df.copy()
+    tabel["Keterangan"] = np.where(
+        tabel["Status_Validasi"] == "Anomali Valid",
+        np.where(tabel["Zscore"] > 0, "Lumbung Pangan Nasional", "Produksi rendah, sesuai riwayat"),
+        "Perlu verifikasi (menyimpang dari riwayat / riwayat kurang)",
+    )
+    st.dataframe(
+        tabel[["Provinsi", "Produksi", "Zscore", "Cluster", "Status_Statistik", "Status_Validasi", "Keterangan"]],
+        use_container_width=True,
+    )
+    st.caption(
+        "Anomali Valid = produksi menyimpang dari provinsi lain (|Z| tinggi) tetapi konsisten "
+        "dengan riwayat 5 tahun provinsi itu, yaitu Lumbung Pangan Nasional."
+    )
+
+    if st.button("📜 Data sebelumnya (5 tahun)", key="btn_riwayat"):
+        st.session_state["tampil_riwayat"] = not st.session_state.get("tampil_riwayat", False)
+    if st.session_state.get("tampil_riwayat", False):
+        riwayat = pd.read_csv(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "riwayat_produksi.csv"),
+            index_col="Provinsi",
+        )
+        daftar = [p for p in tabel["Provinsi"] if p in riwayat.index]
+        if not daftar:
+            st.info("Riwayat provinsi ini belum tersedia.")
+            return
+        hasil = riwayat.loc[daftar].copy()
+        hasil["Rata-rata 2020-2024"] = hasil.mean(axis=1)
+        hasil["2025 (saat ini)"] = tabel.set_index("Provinsi").loc[daftar, "Produksi"]
+        st.dataframe(hasil.round(0), use_container_width=True)
+        st.caption("Sumber: BPS, produksi padi (ton GKG).")
+
+def tampilkan_tabel_anomali(anomali_df):
+    """Tabel Data Anomali + validasi kontekstual + tombol riwayat 5 tahun."""
+    if len(anomali_df) == 0:
+        st.success("Tidak ditemukan anomali.")
+        return
+
+    tabel = anomali_df.copy()
+    tabel["Keterangan"] = np.where(
+        tabel["Status_Validasi"] == "Anomali Valid",
+        np.where(tabel["Zscore"] > 0, "Lumbung Pangan Nasional", "Produksi rendah, sesuai riwayat"),
+        "Perlu verifikasi (menyimpang dari riwayat / riwayat kurang)",
+    )
+    st.dataframe(
+        tabel[["Provinsi", "Produksi", "Zscore", "Cluster", "Status_Statistik", "Status_Validasi", "Keterangan"]],
+        use_container_width=True,
+    )
+    st.caption(
+        "Anomali Valid = produksi menyimpang dari provinsi lain (|Z| tinggi) tetapi konsisten "
+        "dengan riwayat 5 tahun provinsi itu, yaitu Lumbung Pangan Nasional."
+    )
+
+    if st.button("📜 Data sebelumnya (5 tahun)", key="btn_riwayat"):
+        st.session_state["tampil_riwayat"] = not st.session_state.get("tampil_riwayat", False)
+    if st.session_state.get("tampil_riwayat", False):
+        riwayat = pd.read_csv(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "riwayat_produksi.csv"),
+            index_col="Provinsi",
+        )
+        daftar = [p for p in tabel["Provinsi"] if p in riwayat.index]
+        if not daftar:
+            st.info("Riwayat provinsi ini belum tersedia.")
+            return
+        hasil = riwayat.loc[daftar].copy()
+        hasil["Rata-rata 2020-2024"] = hasil.mean(axis=1)
+        hasil["2025 (saat ini)"] = tabel.set_index("Provinsi").loc[daftar, "Produksi"]
+        st.dataframe(hasil.round(0), use_container_width=True)
+        st.caption("Sumber: BPS, produksi padi (ton GKG).")
 
 # ==================================================
 # STRUKTUR BLOCKCHAIN ASLI & NODE ENGINE
@@ -402,21 +510,46 @@ def analisis_agrochain(df, k, batas_z):
         lambda z: "Anomali" if abs(z) > batas_z else "Normal"
     )
 
-    # validasi anomali sederhana
-    provinsi_lumbung_pangan = [
-        "Jawa Timur",
-        "Jawa Barat",
-        "Jawa Tengah"
-    ]
+    import os
+
+    # validasi kontekstual berbasis riwayat produksi (BPS 2020-2024)
+    RIWAYAT = pd.read_csv(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "riwayat_produksi.csv"),
+        index_col="Provinsi",
+    )
+    TOTAL_NASIONAL = RIWAYAT.sum()          # total nasional tiap tahun riwayat
+    TOTAL_NASIONAL_2025 = 60207101          # total nasional 2025 (BPS)
+    TREN_NASIONAL = np.log(TOTAL_NASIONAL_2025 / TOTAL_NASIONAL["2024"])
+    BATAS_LONJAKAN = 2     # lonjakan jika > rata-rata + 2 simpangan baku riwayat
+    SD_MIN = 0.05          # lantai simpangan baku agar provinsi yang sangat stabil tidak terlalu sensitif
+    MIN_RIWAYAT = 4        # minimal 4 tahun riwayat
+    MIN_KENAIKAN_TON = 0.001 * TOTAL_NASIONAL_2025   # kenaikan di bawah 0,1% produksi nasional dianggap tidak material
+
+    def skor_lonjakan(provinsi, nilai):
+        """Seberapa jauh kenaikan tahun ini (dikurangi tren nasional) melebihi kebiasaan riwayat provinsi itu."""
+        if provinsi not in RIWAYAT.index or nilai <= 0:
+            return None
+        seri = RIWAYAT.loc[provinsi].dropna()
+        if len(seri) < MIN_RIWAYAT or seri.iloc[-1] <= 0:
+            return None
+        if nilai - seri.iloc[-1] < MIN_KENAIKAN_TON:
+            return 0.0
+        rel_hist = np.log(seri).diff().dropna() - np.log(TOTAL_NASIONAL[seri.index]).diff().dropna()
+        rel_kini = np.log(nilai / seri.iloc[-1]) - TREN_NASIONAL
+        sd = max(rel_hist.std(ddof=1), SD_MIN)
+        return (rel_kini - rel_hist.mean()) / sd
 
     def validasi(row):
         if row["Status_Statistik"] == "Normal":
             return "Valid"
-        elif row["Provinsi"] in provinsi_lumbung_pangan:
-            return "Anomali Valid"
-        else:
+        skor = skor_lonjakan(row["Provinsi"], row["Produksi"])
+        if skor is None:  # riwayat tidak cukup (mis. provinsi pemekaran): aturan sederhana
+            return "Valid" if row["Status_Statistik"] == "Normal" else "Perlu Cek"
+        if skor > BATAS_LONJAKAN:
             return "Perlu Cek"
-
+        if row["Status_Statistik"] == "Normal":
+            return "Valid"
+        return "Anomali Valid"
     df["Status_Validasi"] = df.apply(validasi, axis=1)
 
     # kontribusi nasional dalam dataset
@@ -474,11 +607,11 @@ default_data = {
         "Papua Barat Daya","Papua","Papua Selatan","Papua Tengah","Papua Pegunungan"
     ],
     "Produksi": [
-        1615100,2753000,1384000,233000,368000,3626000,267000,3253000,
-        64000,648,1488,10227000,9304000,548000,10438000,1774000,589000,
-        1711000,968000,758000,332000,1179000,271000,37000,265000,
-        919000,5307000,682000,281000,386000,102000,21600,13400,
-        829,1819,342000,3805,346
+        1615200,2752655,1382697,232071,367791,3627022,266567,3252627,
+64304,688,1487,10226654,9304063,547510,10438361,1774017,587866,
+1708619,968324,757829,333429,1179338,270867,38038,265112,
+920086,5466592,680820,281171,386084,103819,22642,13366,
+830,1859,362542,3805,346
     ]
 }
 
@@ -1464,23 +1597,7 @@ with tab7:
         hasil_sesudah["Status_Statistik"] == "Anomali"
     ]
 
-    if len(anomali_df) == 0:
-        st.success(
-            "Tidak ditemukan anomali."
-        )
-    else:
-        st.dataframe(
-            anomali_df[
-                [
-                    "Provinsi",
-                    "Produksi",
-                    "Zscore",
-                    "Cluster",
-                    "Status_Statistik"
-                ]
-            ],
-            use_container_width=True
-        )
+    tampilkan_tabel_anomali(anomali_df)
 
 # ==================================================
 # TAB 12 - Anomali Bulanan
@@ -1890,11 +2007,12 @@ except Exception as e:
     st.warning(f"Modul blockchain belum siap: {e}")
 
 if ok_pasangan:
+    ada_perlu_cek = tampilkan_blokir_anomali(hasil_sesudah)
     if not hash_berubah:
         st.info("Belum ada perubahan data. Ubah nilai di sidebar dulu.")
-    if st.button("Catat pasangan hash ke blockchain", key="btn_pasangan", disabled=not hash_berubah):
-        status_pasangan = 1 if jumlah_perlu_cek > 0 else 0
-        with st.spinner("Mengirim transaksi ke Sepolia..."):
+    if (not ada_perlu_cek) and st.button("Catat pasangan hash ke blockchain", key="btn_pasangan", disabled=not hash_berubah):
+        status_pasangan = 1 if jumlah_anomali_valid > 0 else 0
+        with st.spinner("Memproses pencatatan..."):
             tx = catat_perubahan(hash_sebelum, hash_sesudah, status_pasangan)
         idx = total_perubahan() - 1
         st.session_state["pasangan_last"] = (idx, hash_sebelum, hash_sesudah, tx)
@@ -1906,4 +2024,3 @@ if ok_pasangan:
         chain_hs, chain_hd = baca_perubahan(idx)
         st.write("Hash sebelum di blockchain:", chain_hs)
         st.write("Hash sesudah di blockchain:", chain_hd)
-        st.write("Cocok dengan tampilan:", chain_hs == hs and chain_hd == hd)
